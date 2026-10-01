@@ -255,12 +255,102 @@ kbd { display: inline-grid; min-width: 21px; height: 21px; padding: 0 5px; place
 .export-panel p { margin-bottom: 18px; color: #737068; font-size: 12px; line-height: 1.7; }
 .toast { position: fixed; right: 28px; bottom: 28px; z-index: 100; padding: 11px 16px; border-radius: 8px; color: #fff; background: #345f52; box-shadow: 0 10px 30px rgba(42,68,58,.25); }
 
+/* 韵谱候选 / 旧依据角标 */
+.meter-character.is-proposed::after,
+.meter-character.is-stale::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.meter-character.is-proposed::after { background: #2f6db3; box-shadow: 0 0 0 2px rgba(47,109,179,.18); }
+.meter-character.is-stale::after { background: #c07a28; box-shadow: 0 0 0 2px rgba(192,122,40,.18); }
+
+.judgment-line { display: flex; align-items: center; justify-content: space-between; margin-top: 13px; }
+.judgment-line > span { color: #77746c; font-size: 10px; font-weight: 700; }
+.candidate-box { margin-top: 10px; padding: 10px 11px; border: 1px solid #b9cfe6; border-radius: 9px; background: #f1f7fd; }
+.candidate-box.is-stale { border-color: #e3c9a0; background: #fdf7ea; }
+.candidate-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.candidate-head strong { font-size: 11px; }
+.candidate-values { margin: 8px 0 3px; font: 15px/1.5 "Songti SC", "STSong", serif; }
+.candidate-box small { display: block; color: #7a7568; font-size: 10px; }
+.candidate-actions { display: flex; gap: 6px; margin-top: 9px; }
+
+/* 韵谱裁决 */
+.rhyme-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr) 350px; gap: 12px; align-items: start; }
+.package-panel, .queue-panel, .stale-panel { padding-bottom: 13px; }
+.package-body { padding: 13px 14px 0; display: grid; gap: 10px; }
+.package-card { padding: 11px; border: 1px solid #dfe4da; border-radius: 9px; background: #f4f7f1; }
+.package-name { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.package-name strong { font-size: 13px; }
+.package-card small { display: block; margin-top: 7px; color: #8a857a; font-size: 10px; }
+.package-empty { color: #8a857a; font-size: 12px; }
+.package-actions { display: grid; gap: 7px; }
+.file-button {
+  display: block;
+  padding: 6px 10px;
+  text-align: center;
+  border: 1px solid #345f52;
+  border-radius: 6px;
+  color: #fff;
+  background: #345f52;
+  font-size: 12px;
+  cursor: pointer;
+  transition: .16s ease;
+}
+.file-button:hover { background: #2a5044; }
+.ownership-note p { margin: 5px 0; color: #7c776c; font-size: 10.5px; line-height: 1.6; }
+
+.queue-head-actions { display: flex; align-items: center; gap: 6px; }
+.queue-hint { margin: 10px 14px 0; color: #8a857a; font-size: 10.5px; }
+.queue-list { padding: 11px 14px 4px; display: grid; gap: 9px; }
+.queue-item {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e4dfd4;
+  border-radius: 10px;
+  background: #fbfaf6;
+}
+.queue-item.has-conflict { border-color: #dfb4ae; background: #fdf3f1; }
+.queue-locate { display: grid; justify-items: center; gap: 4px; padding: 4px; border: 0; background: transparent; cursor: pointer; }
+.queue-char { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 8px; background: #ecefe8; font: 22px/1 "Songti SC", "STSong", serif; }
+.queue-locate:hover .queue-char { background: #dfe7dc; }
+.queue-locate small { color: #8a857a; font-size: 9px; }
+.queue-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.queue-compare > div { padding: 8px 9px; border-radius: 7px; background: #f4f2ec; }
+.queue-item.has-conflict .queue-compare > div { background: #f9e9e6; }
+.compare-label { color: #96907f; font-size: 9px; letter-spacing: .08em; }
+.queue-compare p { margin: 4px 0 2px; font: 13px/1.4 "Songti SC", "STSong", serif; }
+.queue-compare small { color: #8a857a; font-size: 9px; }
+.queue-actions { display: grid; gap: 6px; justify-items: end; }
+.decided-list { padding: 0 14px; display: grid; gap: 6px; }
+.decided-row { display: flex; align-items: center; gap: 8px; color: #5f5b52; font-size: 11px; }
+.decided-row .decided-char { font: 15px/1 "Songti SC", "STSong", serif; }
+.decided-row small { color: #96907f; font-size: 9px; }
+.decided-row button { margin-left: auto; }
+
+.stale-list { padding: 11px 14px 0; display: grid; gap: 9px; }
+.stale-card { padding: 10px; border: 1px solid #e8d9bd; border-radius: 10px; background: #fdf9ef; }
+.stale-head { display: flex; align-items: center; gap: 10px; }
+.stale-head strong { font-size: 12px; }
+.stale-head small { display: block; margin-top: 3px; color: #8a857a; font-size: 9.5px; }
+.stale-candidate { margin: 9px 0; color: #6b6659; font-size: 11px; }
+.stale-card .queue-actions { display: flex; justify-content: flex-start; }
+
 @media (max-width: 1280px) {
   .app-header { grid-template-columns: 1fr auto; }
   .header-status { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; padding-bottom: 10px; }
   .meter-workbench { grid-template-columns: 250px minmax(500px, 1fr); }
   .inspector-panel { grid-column: 1 / -1; position: static; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 16px; }
   .inspector-panel .section-title, .inspector-panel .selected-char-card, .inspector-panel .field-label, .inspector-panel .tone-buttons, .inspector-panel .switch-line { grid-column: span 1; }
+  .rhyme-layout { grid-template-columns: 280px minmax(0, 1fr); }
+  .stale-panel { grid-column: 1 / -1; }
 }
 
 @media (max-width: 900px) {
@@ -275,7 +365,10 @@ kbd { display: inline-grid; min-width: 21px; height: 21px; padding: 0 5px; place
   .source-panel { order: 2; }
   .meter-panel { order: 1; overflow-x: auto; }
   .inspector-panel { order: 3; grid-template-columns: 1fr; }
-  .audit-layout, .version-layout { grid-template-columns: 1fr; }
+  .audit-layout, .version-layout, .rhyme-layout { grid-template-columns: 1fr; }
+  .stale-panel { grid-column: auto; }
+  .queue-item { grid-template-columns: 1fr; }
+  .queue-actions { display: flex; justify-content: flex-end; }
   .version-grid { grid-template-columns: repeat(2, 1fr); }
   .compare-toolbar { flex-wrap: wrap; }
 }

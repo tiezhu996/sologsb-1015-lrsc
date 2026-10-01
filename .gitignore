@@ -43,3 +43,6 @@ Thumbs.db
 
 # local npm cache used during constrained network installs
 .npm-cache
+
+# smoke test build output
+/scripts/.smoke-out

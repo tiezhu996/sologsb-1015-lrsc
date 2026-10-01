@@ -6,10 +6,12 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "test:smoke": "esbuild src/app/services/poetry-store.service.ts src/app/services/rhyme-package.ts --outdir=scripts/.smoke-out --format=esm --bundle --log-level=warning && node scripts/smoke-rhyme.mjs"
   },
   "private": true,
   "dependencies": {
+    "@angular/animations": "^19.2.0",
     "@angular/common": "^19.2.0",
     "@angular/compiler": "^19.2.0",
     "@angular/core": "^19.2.0",
@@ -17,12 +19,11 @@
     "@angular/platform-browser": "^19.2.0",
     "@angular/platform-browser-dynamic": "^19.2.0",
     "@angular/router": "^19.2.0",
+    "@ant-design/icons-angular": "^19.0.0",
+    "ng-zorro-antd": "^19.3.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
-    "zone.js": "~0.15.0",
-    "@angular/animations": "^19.2.0",
-    "@ant-design/icons-angular": "^19.0.0",
-    "ng-zorro-antd": "^19.3.1"
+    "zone.js": "~0.15.0"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^19.2.27",

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, HostListener, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
@@ -13,7 +13,9 @@ import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzTabsModule } from 'ng-zorro-antd/tabs';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
+import type { CharacterMark } from './models/poem.models';
 import { METER_TEMPLATES, PoetryStoreService } from './services/poetry-store.service';
+import { SAMPLE_RHYME_PACKAGE_V1, SAMPLE_RHYME_PACKAGE_V2 } from './services/rhyme-package';
 
 @Component({
   selector: 'app-root',
@@ -40,7 +42,20 @@ import { METER_TEMPLATES, PoetryStoreService } from './services/poetry-store.ser
 export class AppComponent {
   readonly store = inject(PoetryStoreService);
   readonly templates = METER_TEMPLATES;
+  readonly mainTabIndex = signal(0);
   readonly selectedCell = computed(() => this.store.selectedCell());
+  /** 当前选中字的待决候选（若有） */
+  readonly selectedAdjudication = computed(() => {
+    const line = this.store.selectedLine();
+    const position = this.store.selectedPosition();
+    return this.store.pendingAdjudications().find((item) => item.line === line && item.position === position);
+  });
+  /** 当前选中字的旧依据判定（若有） */
+  readonly selectedStale = computed(() => {
+    const line = this.store.selectedLine();
+    const position = this.store.selectedPosition();
+    return this.store.staleConfirmations().find((item) => item.line === line && item.position === position);
+  });
 
   get totalErrors(): number {
     return this.store.issues().filter((issue) => issue.level === 'error').length;
@@ -56,6 +71,14 @@ export class AppComponent {
     return Math.round((cells.filter((cell) => cell.actual !== '?').length / cells.length) * 100);
   }
 
+  get pendingConflicts(): number {
+    return this.store.pendingAdjudications().filter((item) => item.conflict).length;
+  }
+
+  get hasNonConflictPending(): boolean {
+    return this.store.pendingAdjudications().some((item) => !item.conflict);
+  }
+
   setTone(tone: '平' | '仄' | '中' | '?'): void {
     this.store.setMark({ tone });
   }
@@ -66,6 +89,56 @@ export class AppComponent {
 
   updateVersionSource(source: string): void {
     this.store.updateVersionSource(source);
+  }
+
+  onPackageFile(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.store.importRhymePackage(String(reader.result ?? ''));
+      input.value = '';
+    };
+    reader.onerror = () => {
+      this.store.toast.set('读取文件失败，未改动现有韵谱包');
+      input.value = '';
+    };
+    reader.readAsText(file);
+  }
+
+  loadSamplePackage(version: 1 | 2): void {
+    const pack = version === 1 ? SAMPLE_RHYME_PACKAGE_V1 : SAMPLE_RHYME_PACKAGE_V2;
+    this.store.importRhymePackage(JSON.stringify(pack));
+  }
+
+  acceptSelectedCandidate(): void {
+    const item = this.selectedAdjudication();
+    if (item) this.store.acceptCandidate(item);
+  }
+
+  locateCell(line: number, position: number): void {
+    this.store.selectCell(line, position);
+    this.mainTabIndex.set(0);
+  }
+
+  judgmentLabel(mark: CharacterMark): string {
+    const judgment = mark.judgment;
+    if (!judgment) return '未确认';
+    if (judgment.source === 'manual') return judgment.migrated ? '人工确认 · 旧数据迁移' : '人工确认';
+    const pack = this.store.rhymePackage();
+    const stale = judgment.staleBasis || judgment.packageId !== pack?.id || judgment.packageVersion !== pack?.version;
+    const ref = `韵谱包「${judgment.packageName ?? judgment.packageId}」${judgment.packageVersion}`;
+    return stale ? `${ref} · 旧依据` : ref;
+  }
+
+  judgmentColor(mark: CharacterMark): string {
+    const judgment = mark.judgment;
+    if (!judgment) return 'default';
+    if (judgment.source === 'manual') return 'success';
+    const pack = this.store.rhymePackage();
+    const stale = judgment.staleBasis || judgment.packageId !== pack?.id || judgment.packageVersion !== pack?.version;
+    return stale ? 'warning' : 'processing';
   }
 
   trackTemplate(index: number, item: (typeof METER_TEMPLATES)[number]): string {
@@ -126,6 +199,8 @@ export class AppComponent {
       this.store.togglePause();
     } else if (event.key.toLowerCase() === 'r') {
       this.store.cycleRhyme();
+    } else if (event.key.toLowerCase() === 'a') {
+      this.acceptSelectedCandidate();
     }
   }
 }
