@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, HostListener, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
@@ -14,6 +14,7 @@ import { NzTabsModule } from 'ng-zorro-antd/tabs';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { METER_TEMPLATES, PoetryStoreService } from './services/poetry-store.service';
+import { SAMPLE_PACK_V1, SAMPLE_PACK_V2 } from './services/rhyme-pack.service';
 
 @Component({
   selector: 'app-root',
@@ -41,6 +42,9 @@ export class AppComponent {
   readonly store = inject(PoetryStoreService);
   readonly templates = METER_TEMPLATES;
   readonly selectedCell = computed(() => this.store.selectedCell());
+  readonly activeTabIndex = signal(0);
+  readonly sampleV1 = SAMPLE_PACK_V1;
+  readonly sampleV2 = SAMPLE_PACK_V2;
 
   get totalErrors(): number {
     return this.store.issues().filter((issue) => issue.level === 'error').length;
@@ -66,6 +70,29 @@ export class AppComponent {
 
   updateVersionSource(source: string): void {
     this.store.updateVersionSource(source);
+  }
+
+  onPackFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) this.store.importPackFile(file);
+    input.value = '';
+  }
+
+  loadSampleV1(): void {
+    this.store.importSamplePack(SAMPLE_PACK_V1);
+  }
+
+  loadSampleV2(): void {
+    this.store.importSamplePack(SAMPLE_PACK_V2);
+  }
+
+  openAdjudicationTab(): void {
+    this.activeTabIndex.set(2);
+  }
+
+  entryCount(entries: Record<string, unknown> | undefined | null): number {
+    return entries ? Object.keys(entries).length : 0;
   }
 
   trackTemplate(index: number, item: (typeof METER_TEMPLATES)[number]): string {

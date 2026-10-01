@@ -18,6 +18,21 @@
         [nzStrokeWidth]="6"
       ></nz-progress>
       <span class="status-copy">已标注 {{ checkedRate }}%</span>
+      @if (store.currentPack(); as pack) {
+        <button
+          class="queue-entry"
+          nz-tooltip
+          [nzTooltipTitle]="'韵谱候选未确认：' + store.pendingCount() + ' 项；冲突 ' + store.conflictCount() + ' 项'"
+          (click)="openAdjudicationTab()"
+        >
+          <nz-tag nzColor="gold">{{ pack.name }} {{ pack.version }}</nz-tag>
+          <nz-badge [nzCount]="store.pendingCount()" [nzOverflowCount]="99"></nz-badge>
+        </button>
+      } @else {
+        <button class="queue-entry" nz-tooltip nzTooltipTitle="导入韵谱包以获取字音候选" (click)="openAdjudicationTab()">
+          <nz-tag>未导入韵谱包</nz-tag>
+        </button>
+      }
     </div>
     <div class="header-actions">
       <button nz-button nz-tooltip nzTooltipTitle="撤销 Ctrl/Cmd+Z" [disabled]="store.undoCount() === 0" (click)="store.undo()">撤销</button>
@@ -41,11 +56,17 @@
     <div class="issue-pills">
       <nz-tag nzColor="error">{{ totalErrors }} 处出律</nz-tag>
       <nz-tag nzColor="warning">{{ totalWarnings }} 处待核</nz-tag>
+      @if (store.pendingCount() > 0) {
+        <nz-tag nzColor="gold" class="clickable-tag" (click)="openAdjudicationTab()">{{ store.pendingCount() }} 项韵谱待决</nz-tag>
+      }
+      @if (store.staleCount() > 0) {
+        <nz-tag nzColor="orange" class="clickable-tag" (click)="openAdjudicationTab()">{{ store.staleCount() }} 项旧依据</nz-tag>
+      }
       <nz-tag>{{ store.differences().length }} 处异文</nz-tag>
     </div>
   </section>
 
-  <nz-tabset nzType="line" class="main-tabs">
+  <nz-tabset nzType="line" class="main-tabs" [nzSelectedIndex]="activeTabIndex()" (nzSelectedIndexChange)="activeTabIndex.set($event)">
     <nz-tab nzTitle="逐字标注">
       <div class="meter-workbench">
         <aside class="source-panel surface">
@@ -106,11 +127,27 @@
                       [class.is-variant]="cell.status === 'variant'"
                       [class.is-error]="cell.status === 'error'"
                       [class.is-unknown]="cell.status === 'unknown'"
+                      [class.is-candidate]="cell.adjudication === 'candidate'"
+                      [class.is-conflict]="cell.adjudication === 'conflict'"
+                      [class.is-stale]="cell.adjudication === 'stale'"
                       nz-tooltip
                       [nzTooltipTitle]="cell.message"
                       (click)="store.selectCell(line.index, cell.position)"
                     >
                       <span class="expected">{{ cell.expected }}／{{ cell.actual }}</span>
+                      <span class="owner-badge" [attr.data-owner]="cell.mark.provenance?.owner || 'none'" [attr.data-state]="cell.adjudication">
+                        @switch (cell.adjudication) {
+                          @case ('candidate') { <i class="badge-candidate" title="韵谱候选待确认">候</i> }
+                          @case ('conflict') { <i class="badge-conflict" title="候选与人工判定冲突，待裁决">冲</i> }
+                          @case ('stale') { <i class="badge-stale" title="依据旧版韵谱确认，新包候选已变">旧</i> }
+                          @case ('accepted') { <i class="badge-pack" title="韵谱候选已确认写入">谱</i> }
+                          @case ('kept-manual') { <i class="badge-manual" title="冲突已裁决：保留人工判定">人</i> }
+                          @default {
+                            @if (cell.mark.provenance?.owner === 'rhyme-pack') { <i class="badge-pack" title="韵谱候选已确认写入">谱</i> }
+                            @else if (cell.mark.provenance?.owner === 'manual') { <i class="badge-manual" title="人工确认">人</i> }
+                          }
+                        }
+                      </span>
                       <span class="hanzi">{{ cell.char }}</span>
                       <span class="mark-row">
                         @if (cell.mark.rhyme) { <em>{{ cell.mark.rhyme }}</em> }
@@ -146,6 +183,68 @@
                 <p>{{ cell.message }}</p>
               </div>
             </div>
+
+            @if (store.currentPack()) {
+              <div class="ownership-line">
+                <span class="field-label" style="margin:0">数据所有权</span>
+                @switch (cell.adjudication) {
+                  @case ('candidate') { <nz-tag nzColor="gold">韵谱候选 · 待确认</nz-tag> }
+                  @case ('conflict') { <nz-tag nzColor="error">与人工冲突 · 未决</nz-tag> }
+                  @case ('stale') { <nz-tag nzColor="orange">韵谱确认 · 旧依据</nz-tag> }
+                  @case ('accepted') { <nz-tag nzColor="green">韵谱确认</nz-tag> }
+                  @case ('kept-manual') { <nz-tag nzColor="blue">冲突裁决 · 保留人工</nz-tag> }
+                  @case ('aligned') { <nz-tag nzColor="default">人工判定 · 与谱一致</nz-tag> }
+                  @default { <nz-tag nzColor="default">人工校勘</nz-tag> }
+                }
+              </div>
+            }
+
+            @if (cell.candidate) {
+              <div
+                class="candidate-card"
+                [class.is-conflict]="cell.adjudication === 'conflict' || cell.adjudication === 'stale'"
+              >
+                <div class="candidate-head">
+                  <span class="overline">RHYME PACK CANDIDATE</span>
+                  <small>{{ store.currentPack()!.name }} {{ store.currentPack()!.version }}</small>
+                </div>
+                <div class="candidate-body">
+                  <strong>{{ cell.candidate.tone }}声</strong>
+                  <em>{{ cell.candidate.rhyme }}</em>
+                </div>
+                <p>{{ cell.candidate.basis }}</p>
+                @if (cell.adjudication === 'stale' && cell.priorCandidate) {
+                  <div class="prior-basis">
+                    旧依据（{{ cell.mark.provenance?.packName }} {{ cell.mark.provenance?.packVersion }}）：
+                    {{ cell.priorCandidate.tone }}声 · {{ cell.priorCandidate.rhyme }} —— 当前判定已保留。
+                  </div>
+                }
+                <div class="candidate-actions">
+                  @if (cell.adjudication === 'candidate' || cell.adjudication === 'conflict') {
+                    <button nz-button nzSize="small" nzType="primary" (click)="store.acceptCandidate(store.selectedLine(), cell.position)">采纳候选</button>
+                    @if (cell.adjudication === 'conflict') {
+                      <button nz-button nzSize="small" (click)="store.keepManual(store.selectedLine(), cell.position)">保留人工</button>
+                    }
+                  } @else if (cell.adjudication === 'accepted' || cell.adjudication === 'kept-manual' || cell.adjudication === 'stale') {
+                    <button nz-button nzSize="small" (click)="store.reopenAdjudication(store.selectedLine(), cell.position)">送回裁决队列</button>
+                  }
+                </div>
+              </div>
+            } @else if (store.currentPack()) {
+              <p class="no-candidate-hint">当前韵谱包未收录“{{ cell.char }}”，字音以人工校勘为准。</p>
+            }
+
+            @if (cell.mark.provenance) {
+              <p class="provenance-note">
+                依据来源：
+                @if (cell.mark.provenance.owner === 'manual') { 人工确认于 {{ cell.mark.provenance.confirmedAt | date: 'yyyy-MM-dd HH:mm' }} }
+                @else {
+                  {{ cell.mark.provenance.packName }} {{ cell.mark.provenance.packVersion }}，
+                  确认于 {{ cell.mark.provenance.confirmedAt | date: 'yyyy-MM-dd HH:mm' }}
+                }
+              </p>
+            }
+
             <label class="field-label">平仄</label>
             <div class="tone-buttons">
               <button nz-button [nzType]="cell.mark.tone === '平' ? 'primary' : 'default'" (click)="setTone('平')">平</button>
@@ -233,6 +332,152 @@
       </div>
     </nz-tab>
 
+    <nz-tab nzTitle="韵谱裁决">
+      <div class="adjudication-layout">
+        <section class="surface pack-panel">
+          <div class="section-title">
+            <div>
+              <span class="overline">RHYME PACK OWNERSHIP</span>
+              <h2>韵谱包与数据所有权</h2>
+            </div>
+          </div>
+          <div class="pack-body">
+            <p class="ownership-rule">
+              韵谱包只提供字音<strong>候选</strong>，不覆盖校勘稿；经校勘员确认后候选才写入当前校勘稿，
+              未决冲突保留在裁决队列。人工标注与韵谱候选分属两套数据所有权。
+            </p>
+            @if (store.currentPack(); as pack) {
+              <div class="pack-meta-card">
+                <div>
+                  <strong>{{ pack.name }}</strong>
+                  <small>版本 {{ pack.version }} · {{ entryCount(pack.entries) }} 条候选 · {{ pack.importedAt | date: 'yyyy-MM-dd HH:mm' }} 导入</small>
+                </div>
+                <nz-tag nzColor="green">当前生效包</nz-tag>
+              </div>
+            } @else {
+              <nz-empty nzNotFoundContent="尚未导入韵谱包"></nz-empty>
+            }
+            <div class="pack-actions">
+              <label class="upload-button">
+                <input type="file" accept=".json,application/json" hidden (change)="onPackFileSelected($event)" />
+                <button nz-button nzType="primary" type="button">导入韵谱包 JSON</button>
+              </label>
+              @if (!store.currentPack()) {
+                <button nz-button (click)="loadSampleV1()">载入示例包 v1</button>
+              } @else {
+                <button nz-button (click)="loadSampleV2()">载入示例包 v2（模拟包更新）</button>
+              }
+            </div>
+            @if (store.packError(); as error) {
+              <nz-alert class="pack-alert" nzType="error" nzShowIcon [nzMessage]="error" nzDescription="上一包与裁决进度均已保留，可修正后重试，重试不会产生重复数据。"></nz-alert>
+            }
+            @if (store.packHistory().length > 0) {
+              <div class="pack-history">
+                <span class="field-label">历史韵谱包（旧依据追溯）</span>
+                @for (pack of store.packHistory(); track pack.id + pack.version) {
+                  <div class="history-row">
+                    <nz-tag>{{ pack.version }}</nz-tag>
+                    <strong>{{ pack.name }}</strong>
+                    <small>{{ entryCount(pack.entries) }} 条 · {{ pack.importedAt | date: 'yyyy-MM-dd' }}</small>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </section>
+
+        <section class="surface queue-panel">
+          <div class="section-title">
+            <div>
+              <span class="overline">ADJUDICATION QUEUE</span>
+              <h2>裁决队列</h2>
+            </div>
+            <div class="queue-toolbar">
+              <nz-tag nzColor="gold">{{ store.pendingCount() }} 待决</nz-tag>
+              <nz-tag nzColor="error">{{ store.conflictCount() }} 冲突</nz-tag>
+              <button
+                nz-button
+                nzSize="small"
+                [disabled]="!store.currentPack()"
+                (click)="store.acceptAllNonConflicting()"
+              >全部采纳无冲突候选</button>
+            </div>
+          </div>
+          @if (!store.currentPack()) {
+            <div class="queue-empty"><nz-empty nzNotFoundContent="导入韵谱包后，候选位置会出现在这里"></nz-empty></div>
+          } @else if (store.adjudicationQueue().length === 0) {
+            <div class="queue-empty"><nz-empty nzNotFoundContent="所有候选均已裁决，当前校勘稿无未决冲突"></nz-empty></div>
+          } @else {
+            <div class="queue-list">
+              @for (item of store.adjudicationQueue(); track item.key) {
+                <article class="queue-row" [class.is-conflict]="item.state === 'conflict'">
+                  <span class="queue-char">{{ item.char }}</span>
+                  <div class="queue-detail">
+                    <strong>
+                      第 {{ item.line + 1 }} 句第 {{ item.position + 1 }} 字
+                      @if (item.state === 'conflict') { <nz-tag nzColor="error" style="margin-left:6px">冲突</nz-tag> }
+                      @else { <nz-tag nzColor="gold" style="margin-left:6px">待确认</nz-tag> }
+                    </strong>
+                    <p class="queue-compare">
+                      人工：
+                      @if (item.mark.tone === '?') { <i>未标</i> } @else { {{ item.mark.tone }}声 }
+                      @if (item.mark.rhyme) { · {{ item.mark.rhyme }} }
+                      <span class="compare-arrow">⟶</span>
+                      韵谱：{{ item.entry.tone }}声 · {{ item.entry.rhyme }}
+                    </p>
+                    <small>{{ item.entry.basis }}</small>
+                  </div>
+                  <div class="queue-actions">
+                    <button nz-button nzSize="small" nzType="primary" (click)="store.acceptCandidate(item.line, item.position)">采纳</button>
+                    @if (item.state === 'conflict') {
+                      <button nz-button nzSize="small" (click)="store.keepManual(item.line, item.position); $event.stopPropagation()">保留人工</button>
+                    }
+                    <button nz-button nzSize="small" nzType="text" (click)="store.selectCell(item.line, item.position); activeTabIndex.set(0)">定位</button>
+                  </div>
+                </article>
+              }
+            </div>
+          }
+
+          <div class="stale-section">
+            <div class="section-title compact">
+              <div>
+                <span class="overline">SUPERSEDED BASIS</span>
+                <h2>旧依据待核（{{ store.staleCount() }}）</h2>
+              </div>
+            </div>
+            @if (store.staleItems().length === 0) {
+              <p class="stale-hint">韵谱包更新后，依据旧包确认且新候选已变化的位置会列在这里；已确认判定不会自动退回，仅标出旧依据。</p>
+            } @else {
+              <div class="queue-list">
+                @for (item of store.staleItems(); track item.key) {
+                  <article class="queue-row is-stale">
+                    <span class="queue-char">{{ item.char }}</span>
+                    <div class="queue-detail">
+                      <strong>第 {{ item.line + 1 }} 句第 {{ item.position + 1 }} 字 <nz-tag nzColor="orange" style="margin-left:6px">旧依据</nz-tag></strong>
+                      <p class="queue-compare">
+                        当前判定（保留）：{{ item.mark.tone }}声
+                        @if (item.mark.rhyme) { · {{ item.mark.rhyme }} }
+                        @if (item.priorEntry) { <small style="margin-left:4px">〔{{ item.priorEntry.rhyme }}〕</small> }
+                        <span class="compare-arrow">⟶</span>
+                        新包候选：{{ item.entry.tone }}声 · {{ item.entry.rhyme }}
+                      </p>
+                      <small>新依据：{{ item.entry.basis }}</small>
+                    </div>
+                    <div class="queue-actions">
+                      <button nz-button nzSize="small" nzType="primary" (click)="store.acceptCandidate(item.line, item.position)">改用新候选</button>
+                      <button nz-button nzSize="small" (click)="store.reopenAdjudication(item.line, item.position)">送回队列</button>
+                      <button nz-button nzSize="small" nzType="text" (click)="store.selectCell(item.line, item.position); activeTabIndex.set(0)">定位</button>
+                    </div>
+                  </article>
+                }
+              </div>
+            }
+          </div>
+        </section>
+      </div>
+    </nz-tab>
+
     <nz-tab nzTitle="异文并排比较">
       <section class="surface compare-panel">
         <div class="compare-toolbar">
@@ -304,7 +549,7 @@
         <aside class="surface export-panel">
           <span class="overline">PROOFREAD EXPORT</span>
           <h2>导出校对稿</h2>
-          <p>包含逐字平仄、韵组、判断依据、出律提示与对仗记录。</p>
+          <p>包含逐字平仄、韵组、判断依据、出律提示与对仗记录；字音标注会标明「人工确认 / 韵谱确认 / 旧依据」来源。</p>
           <button nz-button nzType="primary" nzSize="large" nzBlock (click)="store.downloadProofreadCopy()">导出 Markdown 校对稿</button>
           <nz-divider></nz-divider>
           <label class="field-label">当前底本说明</label>
